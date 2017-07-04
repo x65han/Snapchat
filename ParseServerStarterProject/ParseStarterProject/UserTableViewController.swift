@@ -10,15 +10,25 @@ import UIKit
 import Parse
 
 class UserTableViewController: UITableViewController {
-
+    
+    var usernames = [String]()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
-
-        // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-        // self.navigationItem.rightBarButtonItem = self.editButtonItem()
+        self.navigationController?.navigationBar.isHidden = false
+        let query = PFUser.query()
+        query?.whereKey("username", notEqualTo: (PFUser.current()?.username)!)
+        do {
+            let users = try query?.findObjects()
+            if let users = users as? [PFUser] {
+                for user in users {
+                    self.usernames.append(user.username!)
+                }
+                tableView.reloadData()
+            }
+        } catch {
+            print("Fails to get users")
+        }
     }
 
     override func didReceiveMemoryWarning() {
@@ -35,18 +45,19 @@ class UserTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return 4
+        return usernames.count
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
-        cell.textLabel?.text = "Test"
+        cell.textLabel?.text = usernames[indexPath.row]
         return cell
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "logout" {
             PFUser.logOut()
+            self.navigationController?.navigationBar.isHidden = true
         }
     }
     /*
