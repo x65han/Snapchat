@@ -9,9 +9,10 @@
 import UIKit
 import Parse
 
-class UserTableViewController: UITableViewController {
+class UserTableViewController: UITableViewController, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
     
     var usernames = [String]()
+    var recipientUsername = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -59,6 +60,40 @@ class UserTableViewController: UITableViewController {
             PFUser.logOut()
             self.navigationController?.navigationBar.isHidden = true
         }
+    }
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        recipientUsername = usernames[indexPath.row]
+        let imagePickerController = UIImagePickerController()
+        imagePickerController.delegate = self
+        imagePickerController.sourceType = .photoLibrary
+        imagePickerController.allowsEditing = false
+        
+        self.present(imagePickerController, animated: true, completion: nil)
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        if let image = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            let imageData = UIImageJPEGRepresentation(image, 0.5)
+            print("Image returned")
+            let imageToSend = PFObject(className: "Image")
+            imageToSend["photo"] = PFFile(name: "photo.png", data: imageData!)
+            imageToSend["senderUsername"] = recipientUsername
+            imageToSend.saveInBackground( block: { (success, error) in
+                var title = "Sending Failed"
+                var description = "Please try again later"
+                if success {
+                    title = "Message Sent!"
+                    description = "Your message has been sent."
+                }
+                let alertController = UIAlertController(title: title, message: description, preferredStyle: .alert)
+                alertController.addAction(UIAlertAction(title: "OK", style: .default, handler: { (action) in
+                    alertController.dismiss(animated: true, completion: nil)
+                }))
+                    self.present(alertController, animated: true, completion: nil)
+            })
+        }
+        self.dismiss(animated: true, completion: nil)
     }
     /*
     // Override to support conditional editing of the table view.
