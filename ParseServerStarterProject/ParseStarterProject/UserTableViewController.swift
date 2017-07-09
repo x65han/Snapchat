@@ -11,11 +11,63 @@ import Parse
 
 class UserTableViewController: UITableViewController, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
     
+    @IBOutlet weak var titleBar: UINavigationItem!
     var usernames = [String]()
     var recipientUsername = ""
+    var currentUsername = ""
+    var timer = Timer()
+    
+    func checkForMessages() {
+        let query = PFQuery(className: "Image")
+        query.whereKey("recipientUsername", equalTo: self.currentUsername)
+        do {
+            let images = try query.findObjects()
+            if images.count > 0 {
+                var senderUsername = "Unknown User"
+                if let username = images[0]["senderUsername"] as? String {
+                    senderUsername = username
+                }
+                if let pfFile = images[0]["photo"] as? PFFile {
+                    pfFile.getDataInBackground(block: { (data, error) in
+                        if let imageData = data {
+                            images[0].deleteInBackground()
+                            self.timer.invalidate()
+                            if let imageToDisplay = UIImage(data: imageData) {
+                                let alertController = UIAlertController(title: "You have a message", message: "Message from " + senderUsername, preferredStyle: .alert)
+                                alertController.addAction(UIAlertAction(title: "OK", style: .default, handler: { (action) in
+                                    let backgroundImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: self.view.frame.width, height: self.view.frame.height))
+                                    backgroundImageView.backgroundColor = .black
+                                    backgroundImageView.alpha = 0.8
+                                    backgroundImageView.tag = 10
+                                    self.view.addSubview(backgroundImageView)
+                                    let displayedImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: self.view.frame.width, height: self.view.frame.height))
+                                    displayedImageView.image = imageToDisplay
+                                    displayedImageView.tag = 10
+                                    displayedImageView.contentMode = UIViewContentMode.scaleToFill
+                                    self.view.addSubview(displayedImageView)
+                                    _ = Timer.scheduledTimer(withTimeInterval: 5, repeats: false, block: { (timer) in
+                                        self.timer = Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(UserTableViewController.checkForMessages), userInfo: nil, repeats: true)
+                                        for subview in self.view.subviews {
+                                            if subview.tag == 10 {
+                                                subview.removeFromSuperview()
+                                            }
+                                        }
+                                    })
+                                }))
+                                self.present(alertController, animated: true, completion: nil)
+                            }
+                        }
+                    })
+                }
+            }
+        } catch {
+            print("Fails to fetch images")
+        }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        timer = Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(UserTableViewController.checkForMessages), userInfo: nil, repeats: true)
         self.navigationController?.navigationBar.isHidden = false
         let query = PFUser.query()
         query?.whereKey("username", notEqualTo: (PFUser.current()?.username)!)
@@ -31,7 +83,12 @@ class UserTableViewController: UITableViewController, UINavigationControllerDele
             print("Fails to get users")
         }
     }
-
+    
+    
+    override func viewDidAppear(_ animated: Bool) {
+        currentUsername = (PFUser.current()?.username)!
+        self.title = "User List - " + currentUsername
+    }
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
@@ -78,7 +135,12 @@ class UserTableViewController: UITableViewController, UINavigationControllerDele
             print("Image returned")
             let imageToSend = PFObject(className: "Image")
             imageToSend["photo"] = PFFile(name: "photo.png", data: imageData!)
-            imageToSend["senderUsername"] = recipientUsername
+            imageToSend["senderUsername"] = PFUser.current()?.username
+            imageToSend["recipientUsername"] = recipientUsername
+            let acl = PFACL()
+            acl.getPublicWriteAccess = true
+            acl.getPublicReadAccess = true
+            imageToSend.acl = acl
             imageToSend.saveInBackground( block: { (success, error) in
                 var title = "Sending Failed"
                 var description = "Please try again later"
